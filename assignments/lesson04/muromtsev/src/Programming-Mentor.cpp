@@ -42,7 +42,8 @@ bool PM::loadHistory(std::string *err)
 
 void PM::determineRequestType(const std::string &request, std::string *err)
 {
-    promptBuilder(request, PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION, err);
+    promptBuilder(PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION, err);
+    request_ = request;
     auto resp = ask(err);
     if (!resp || resp->empty()) {
         if (err && !err->empty()) std::cerr << "Request failed: " << *err << '\n';
@@ -53,7 +54,7 @@ void PM::determineRequestType(const std::string &request, std::string *err)
     const auto type = (it != inner_converter_.end()) ? it->second : PM::REQUEST_TYPE::UNKNOWN;
     if (shouldCompress(type)) compressHistory(err);
     last_type_ = type;
-    promptBuilder(request, type, err);
+    promptBuilder(type, err);
 }
 
 void PM::userIntroduction(std::string *err)
@@ -81,7 +82,7 @@ std::string PM::getUserRequest(std::string *err)
     return "";
 }
 
-std::string PM::promptBuilder(const std::string& request, PM::REQUEST_TYPE type,  std::string *err)
+std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
 {
     std::stringstream ss;
     if ((type != PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION) &&
@@ -115,10 +116,6 @@ std::string PM::promptBuilder(const std::string& request, PM::REQUEST_TYPE type,
             ss << "Консультация по уже написанному коду - вопросы, связанные с улучшением работы уже написанной пользователем программы. Кодовое слово для данного типа - consultation" << '\n';
             ss << "Отладка уже написанной программы - вопросы касательно некорректно работающих или не работающих совсем частей программы пользователя. Кодовое слово для данного типа - debug" << '\n';
             ss << "Вопросы, не относяющие к типам, описанным выше - для них кодовое слово -  unknown" << '\n';
-            ss << "----------------------" << '\n';
-            ss << "Запрос пользователя следующий:" << '\n';
-            ss << request << '\n';
-            ss << "----------------------" << '\n';
             ss << "В качестве ответа дай одно слово - кодовое слово, соответствующее типу запроса пользователя." << '\n';
             break;
         }
@@ -127,10 +124,6 @@ std::string PM::promptBuilder(const std::string& request, PM::REQUEST_TYPE type,
             ss << "В ответе приводи небольшие листинги с кодом - примерами использования интересных пользователю конструкций и алгоритмов." << '\n';
             ss << "Если есть возможность, постарайся объяснить тему пользователю без написания кода." << '\n';
             ss << "Данный выше контекст диалога с пользователем используй минимально - пользователю должно быть всё понятно и без него." << '\n';
-            ss << "----------------------" << '\n';
-            ss << "Запрос пользователя следующий:" << '\n';
-            ss << request << '\n';
-            ss << "----------------------" << '\n';
             break;
         }
         case PM::REQUEST_TYPE::CODE_CONSULTATION: {
@@ -139,10 +132,6 @@ std::string PM::promptBuilder(const std::string& request, PM::REQUEST_TYPE type,
             ss << "Используя данный тебе выше контекст, укажи пользователю на те ошибки, которые он продолжает допускать даже после твоих замечаний, а также похвали его за те конструкции и приемы программирования, которые начали у него лучше получаться по сравнению с прошлыми его запросами" << '\n';
             ss << "При указании на ошибки пользователя, будь предельно вежлив" << '\n';
             ss << "Если в контексте выше пользователь объяснил, почему он не может принять твои исправления и замечания, прислушайся к нему" << '\n';
-            ss << "----------------------" << '\n';
-            ss << "Запрос пользователя следующий:" << '\n';
-            ss << request << '\n';
-            ss << "----------------------" << '\n';
             break;
         }
         case PM::REQUEST_TYPE::CODE_DEBUGGING: {
@@ -153,18 +142,11 @@ std::string PM::promptBuilder(const std::string& request, PM::REQUEST_TYPE type,
             ss << "На основе данного тебе выше контекста подметь, в каких местах пользователь до этого уже совершал схожие ошибки и укажи пользователю на это" << '\n';
             ss << "При указании на ошибки пользователя, будь предельно вежлив" << '\n';
             ss << "Отвечай коротко и максимально по существу" << '\n';
-            ss << "----------------------" << '\n';
-            ss << "Запрос пользователя следующий:" << '\n';
-            ss << request << '\n';
-            ss << "----------------------" << '\n';
             break;
         }
         case PM::REQUEST_TYPE::UNKNOWN: {
             ss << "Запрос пользователя не является стандартным, действуй по ситуации." << '\n';
             ss << "Если вопрос не касается программирования и Computer Science, вежливо скажи пользователю, что не можешь ему помочь." << '\n';
-            ss << "Запрос пользователя следующий:" << '\n';
-            ss << request << '\n';
-            ss << "----------------------" << '\n';
             break;
         }
         case PM::REQUEST_TYPE::COMPRESSION: {
@@ -222,7 +204,7 @@ void PM::saveHistory(const std::optional<std::string>& answer, const std::string
 
 void PM::compressHistory(std::string *err)
 {
-    promptBuilder(" ", PM::inner_converter_.at("compression"), err);
+    promptBuilder(PM::inner_converter_.at("compression"), err);
     auto resp = ask(err);
     if (!resp || resp->empty()) {
         if (err && !err->empty()) std::cerr << "Request failed: " << *err << '\n';

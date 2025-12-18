@@ -1,0 +1,12 @@
+{
+  "type": "local",
+  "host": "127.0.0.1",
+  "port": "8080",
+  "model": "local-gguf",
+  "history_path": "history",
+  "max_saved_requests": 10,
+  "max_saved_bytes": 4096,
+  "max_tokens": 200,
+  "temperature": 0.7,
+  "top_p": 0.9
+}

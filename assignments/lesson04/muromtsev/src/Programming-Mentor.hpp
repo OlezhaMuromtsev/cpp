@@ -23,7 +23,7 @@ public:
 void printInfo();
 void userIntroduction(std::string *err = nullptr);
 void determineRequestType(const std::string &request, std::string *err  = nullptr);
-std::string promptBuilder(const std::string &request, PM::REQUEST_TYPE type,  std::string *err  = nullptr);
+std::string promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err  = nullptr);
 std::string getUserRequest(std::string *err  = nullptr);
 void saveSession();
 void saveHistory(const std::optional<std::string> &answer, const std::string &request);
