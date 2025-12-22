@@ -25,14 +25,13 @@ void printInfo();
 void openDB();
 void userIntroduction(std::string *err = nullptr);
 void determineRequestType(const std::string &request, std::string *err  = nullptr);
-std::string promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err  = nullptr);
+std::string promptBuilder(const PM::REQUEST_TYPE &type, const std::string &request, std::string *err);
 std::string getUserRequest(std::string *err  = nullptr);
 void saveRequest(const std::string &request, const std::string &response);
 private:
 bool loadHistory(const std::string &name, std::string *err);
 void compressHistory(std::string *err = nullptr);
 bool shouldCompress(std::optional<PM::REQUEST_TYPE> nextType);
-std::string request_;
 User user_;
 UserDB db;
 std::optional<PM::REQUEST_TYPE> last_type_ = std::nullopt;

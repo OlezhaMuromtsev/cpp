@@ -45,8 +45,7 @@ void PM::saveRequest(const std::string &request, const std::string &response)
 
 void PM::determineRequestType(const std::string &request, std::string *err)
 {
-    request_ = request;
-    promptBuilder(PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION, err);
+    promptBuilder(PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION, request, err);
     auto resp = ask(err);
     if (!resp || resp->empty()) {
         if (err && !err->empty()) std::cerr << "Request failed: " << *err << '\n';
@@ -59,7 +58,7 @@ void PM::determineRequestType(const std::string &request, std::string *err)
     auto it = inner_converter_.find(key);
     const auto type = (it != inner_converter_.end()) ? it->second : PM::REQUEST_TYPE::UNKNOWN;
     last_type_ = type;
-    promptBuilder(type, err);
+    promptBuilder(type, request, err);
 }
 
 void PM::userIntroduction(std::string *err)
@@ -90,7 +89,7 @@ std::string PM::getUserRequest(std::string *err)
     return "";
 }
 
-std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
+std::string PM::promptBuilder(const PM::REQUEST_TYPE &type, const std::string &request, std::string *err)
 {
     auto history = db.getAllRequestsOfUser(user_);
     auto context = db.getContextByUser(user_).context;
@@ -128,7 +127,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
             ss << "ПРАВИЛО: Только одно слово: general, consultation, debug или unknown" << '\n';
             ss << "НЕТ пояснений. НЕТ кавычек." << '\n';
             ss << "ЗАПРОС:" << '\n';
-            ss << request_;
+            ss << request;
             break;
         }
         case PM::REQUEST_TYPE::GENERAL_QUESTION: {
@@ -139,7 +138,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
             ss << "3. Избегай сложных терминов без объяснений" << '\n';
             ss << "4. Контекст выше используй только если критично необходимо" << '\n';
             ss << "ВОПРОС:" << '\n';
-            ss << request_;
+            ss << request;
             break;
         }
         case PM::REQUEST_TYPE::CODE_CONSULTATION: {
@@ -154,7 +153,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
             ss << "- Учти прошлые возражения ученика" << '\n';
             ss << "- Будь вежлив и конструктивен" << '\n';
             ss << "КОД ДЛЯ АНАЛИЗА:" << '\n';
-            ss << request_;
+            ss << request;
             break;
         }
         case PM::REQUEST_TYPE::CODE_DEBUGGING: {
@@ -169,7 +168,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
             ss << "- Будь вежлив" << '\n';
             ss << "- Отвечай кратко, по делу" << '\n';
             ss << "КОД С ОШИБКАМИ:" << '\n';
-            ss << request_;
+            ss << request;
             break;
         }
         case PM::REQUEST_TYPE::UNKNOWN: {
@@ -178,7 +177,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
             ss << "ЕСЛИ запрос НЕ о программировании — вежливо откажись" << '\n';
             ss << "Фраза для отказа: 'Извините, я могу помочь только с вопросами программирования и Computer Science.'" << '\n';
             ss << "ЗАПРОС:" << '\n';
-            ss << request_;
+            ss << request;
             break;
         }
         case PM::REQUEST_TYPE::COMPRESSION: {
@@ -193,6 +192,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
             ss << "4. Слабые стороны (что улучшить)" << '\n';
             ss << "5. Последняя задача: статус и проблемы" << '\n';
             ss << "ФОРМАТ: краткие пункты, только факты" << '\n';
+            ss << "РАЗМЕР: не более " << cfg_.max_history / 2 << " символов" << '\n';
             ss << "КОНТЕКСТ ДЛЯ СЖАТИЯ:" << '\n';
             ss << "---" << '\n';
             if (context.size()) {
@@ -213,13 +213,14 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
         }
         default: break;
     }
-
-    ss << "ТРЕБОВАНИЯ К ОТВЕТУ:" << '\n';
-    ss << "- Только текст (без Markdown)" << '\n';
-    ss << "- Без лишних знаков препинания" << '\n';
-    ss << "- Максимум 1000 символов" << '\n';
-    ss << "- Прямой и четкий ответ" << '\n';
-    
+    if ((type != PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION) &&
+        (type != PM::REQUEST_TYPE::COMPRESSION)) {
+        ss << "ТРЕБОВАНИЯ К ОТВЕТУ:" << '\n';
+        ss << "- Только текст (без Markdown)" << '\n';
+        ss << "- Без лишних знаков препинания" << '\n';
+        ss << "- Максимум 1000 символов" << '\n';
+        ss << "- Прямой и четкий ответ" << '\n';
+    }
     prompt_ = ss.str();
     return prompt_;
 }
@@ -228,8 +229,7 @@ void PM::compressHistory(std::string *err)
 {
     std::cout << "<Mentor>: Происходит сжатие контекста..." << std::endl;
     auto history = db.getAllRequestsOfUser(user_);
-    auto current_context = db.getContextByUser(user_).context;
-    promptBuilder(PM::COMPRESSION, err);
+    promptBuilder(PM::COMPRESSION, "", err);
     auto resp = ask(err);
     if (!resp || resp->empty()) {
         if (err && !err->empty()) std::cerr << "Request failed: " << *err << '\n';
