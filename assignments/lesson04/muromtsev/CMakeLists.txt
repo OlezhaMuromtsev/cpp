@@ -4,7 +4,9 @@ project(AiAgentExample LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# nlohmann/json для чтения config.json/prompt.json и формирования тела запроса
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SQLITE3 REQUIRED sqlite3)
+
 include(FetchContent)
 FetchContent_Declare(
   nlohmann_json
@@ -13,20 +15,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
-# OpenSSL для TLS
 find_package(OpenSSL REQUIRED)
 
 add_executable(ai_agent
+    src/main.cpp
     src/AiAgent.cpp
     src/Programming-Mentor.cpp
-    src/main.cpp
+    utils/DB.cpp
 )
 
-target_include_directories(ai_agent PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(ai_agent 
+    PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils
+    ${SQLITE3_INCLUDE_DIRS}
+)
 
 target_link_libraries(ai_agent
     PRIVATE
       nlohmann_json::nlohmann_json
       OpenSSL::SSL
       OpenSSL::Crypto
+      ${SQLITE3_LIBRARIES}
 )

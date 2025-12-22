@@ -2,8 +2,8 @@
   "type": "hosted",
   "host": "ai-api.hurated.com",
   "port": "443",
-  "api_key": "e8cd0564e2f1eea03db8e636597e988b",
-  "history_path": "history",
+  "api_key": "api-key",
+  "db_name": "db_test",
   "max_saved_requests": 10,
-  "max_saved_bytes": 4096
+  "max_history_length": 4096
 }

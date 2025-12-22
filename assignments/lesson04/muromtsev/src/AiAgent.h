@@ -5,15 +5,17 @@
 
 using nlohmann::json;
 
+#define SYSTEM_PROMPT_FOR_LOCAL "Ты - часть мультиагентной системы в составе единого ИИ-ментора по программированию. Отвечай коротко и по существу согласно предоставленному тебе запросу."
+
 struct AiConfig {
     std::string type;
     std::string host;
     std::optional<std::string> model = std::nullopt;
     std::string port = "443";
     std::optional<std::string> api_key = std::nullopt;
-    std::optional<std::string> history_path = std::nullopt;
+    std::string history_path;
     std::optional<size_t> max_requests = std::nullopt;
-    std::optional<size_t> max_history_bytes = std::nullopt;
+    std::optional<size_t> max_history = std::nullopt;
     std::optional<size_t> max_tokens = std::nullopt;
     std::optional<double> temp = std::nullopt;
     std::optional<double> top_p = std::nullopt;
@@ -45,5 +47,4 @@ protected:
     static bool readWholeFile(const std::string& path, std::string& out, std::string* err);
     AiConfig cfg_;
     std::string prompt_;
-    std::string request_;
 };

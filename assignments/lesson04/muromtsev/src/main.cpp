@@ -17,10 +17,13 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
+    agent.openDB();
     agent.printInfo();
     agent.userIntroduction(&err);
+    std::cout << "<Mentor>: Жду ваш запрос... Введите 'END' для окончания ввода" << std::endl;
     std::string request = agent.getUserRequest(&err);
     while (request.size()) {
+        std::cout << "<Mentor>: Обрабатываю ваш запрос..." << std::endl;
         agent.determineRequestType(request, &err);
         auto resp = agent.ask(&err);
         if (!resp) {
@@ -28,9 +31,9 @@ int main(int argc, char **argv) {
             return 2;
         }
         std::cout << *resp << "\n";
-        agent.saveHistory(resp, request);
+        agent.saveRequest(request, *resp);
+        std::cout << "<Mentor>: Жду ваш запрос... Введите 'END' для окончания ввода" << std::endl;
         request = agent.getUserRequest(&err);
     }
-    agent.saveSession();
     return 0;
 }

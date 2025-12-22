@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <nlohmann/json.hpp>
 #include "AiAgent.h"
+#include "../utils/DB.hpp"
 
 using json = nlohmann::json;
 
@@ -21,17 +22,18 @@ const static std::unordered_map<std::string, REQUEST_TYPE> inner_converter_;
 
 public:
 void printInfo();
+void openDB();
 void userIntroduction(std::string *err = nullptr);
 void determineRequestType(const std::string &request, std::string *err  = nullptr);
 std::string promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err  = nullptr);
 std::string getUserRequest(std::string *err  = nullptr);
-void saveSession();
-void saveHistory(const std::optional<std::string> &answer, const std::string &request);
+void saveRequest(const std::string &request, const std::string &response);
 private:
-bool loadHistory(std::string *err  = nullptr);
+bool loadHistory(const std::string &name, std::string *err);
 void compressHistory(std::string *err = nullptr);
 bool shouldCompress(std::optional<PM::REQUEST_TYPE> nextType);
-std::string username_;
-json history_;
+std::string request_;
+User user_;
+UserDB db;
 std::optional<PM::REQUEST_TYPE> last_type_ = std::nullopt;
 };

@@ -1,6 +1,5 @@
 #include "Programming-Mentor.hpp"
 #include <iostream>
-#include <fstream>
 
 const std::unordered_map<std::string, PM::REQUEST_TYPE> PM::inner_converter_ = {
     {"general", PM::REQUEST_TYPE::GENERAL_QUESTION},
@@ -11,48 +10,54 @@ const std::unordered_map<std::string, PM::REQUEST_TYPE> PM::inner_converter_ = {
     {"compression", PM::REQUEST_TYPE::COMPRESSION}
 };
 
+
 void PM::printInfo()
 {
-    std::cout << "Здравствуйте! Я ваш персональный ментор по программированию." << '\n';
-    std::cout << "Я могу ответить на любой ваш вопрос по коду, а также проанализировать написанные вами программы и посоветовать, что можно в них улучшить." << '\n';
-    std::cout << "Для того, чтобы продолжить, введите ваше имя - возможно, мы с вами уже знакомы." << '\n';
+    std::cout << "<Mentor>: Здравствуйте! Я ваш персональный ментор по программированию." << '\n';
+    std::cout << "<Mentor>: Я могу ответить на любой ваш вопрос по коду, а также проанализировать написанные вами программы и посоветовать, что можно в них улучшить." << '\n';
+    std::cout << "<Mentor>: Для того, чтобы продолжить, введите ваше имя - возможно, мы с вами уже знакомы." << '\n';
 }
-bool PM::loadHistory(std::string *err) 
+
+void PM::openDB()
 {
-    if (!cfg_.history_path.has_value()) return false;
-    std::string s;
-    const std::string full_path = cfg_.history_path.value() + "/" + username_ + ".json";
-    if (!readWholeFile(full_path, s, err)) {
-        std::ofstream histfile {full_path};
-        histfile << R"({ "requests": [], "context": ""})";
-        histfile.close();
-        history_ = json::parse(R"({ "requests": [], "context": ""})");
-        return false;
-    }
-    try {
-        history_ = json::parse(s);
+    db.open(cfg_.history_path);
+    db.createTables();
+}
+
+bool PM::loadHistory(const std::string &name, std::string *err) 
+{
+    user_ = db.getUserByName(name);
+    if (user_.user_id != -1) {
         return true;
-    } catch (const std::exception& e) {
-        if (err) *err = std::string("History parse error: ") + e.what();
-        history_ = json::parse(R"({ "requests": [], "context": ""})");
-        return false;
     }
+    db.addUser(user_);
     return false;
+}
+
+void PM::saveRequest(const std::string &request, const std::string &response)
+{
+    Request rqst;
+    rqst.request = request;
+    rqst.response = response;
+    db.addRequest(user_, rqst);
+    if (shouldCompress(std::nullopt)) compressHistory();
 }
 
 void PM::determineRequestType(const std::string &request, std::string *err)
 {
-    promptBuilder(PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION, err);
     request_ = request;
+    promptBuilder(PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION, err);
     auto resp = ask(err);
     if (!resp || resp->empty()) {
         if (err && !err->empty()) std::cerr << "Request failed: " << *err << '\n';
+        last_type_ = PM::REQUEST_TYPE::UNKNOWN;
         return;
     }
     std::string key = *resp;
+    key.erase(0, key.find_first_not_of(" \t\n\r"));
+    key.erase(key.find_last_not_of(" \t\n\r") + 1);
     auto it = inner_converter_.find(key);
     const auto type = (it != inner_converter_.end()) ? it->second : PM::REQUEST_TYPE::UNKNOWN;
-    if (shouldCompress(type)) compressHistory(err);
     last_type_ = type;
     promptBuilder(type, err);
 }
@@ -60,12 +65,13 @@ void PM::determineRequestType(const std::string &request, std::string *err)
 void PM::userIntroduction(std::string *err)
 {
     std::cout << "Введите имя:" << '\n';
-    while (!username_.size()) std::cin >> username_;
-    std::cout << "Здравствуйте, " << username_ << "!" << '\n';
-    if (!loadHistory(err)) {
-        std::cout << "Приятно познакомиться. Какой у вас вопрос?" << '\n';
+    std::string name;
+    while (!name.size()) std::cin >> name;
+    std::cout << "<Mentor>: Здравствуйте, " << name << "!" << '\n';
+    if (!loadHistory(name, err)) {
+        std::cout << "<Mentor>: Приятно познакомиться. Какой у вас вопрос?" << '\n';
     } else {
-        std::cout << "Похоже мы с вами уже работали. Какой у вас вопрос?" << '\n';
+        std::cout << "<Mentor>: Похоже мы с вами уже работали. Какой у вас вопрос?" << '\n';
     }
 }
 
@@ -73,6 +79,8 @@ std::string PM::getUserRequest(std::string *err)
 {
     std::string line;
     std::string request;
+    std::cout << "<" + user_.name + ">: ";
+    std::cout.flush();
     while (std::getline(std::cin, line)) {
         if (line == "END") {
             return request;
@@ -84,145 +92,178 @@ std::string PM::getUserRequest(std::string *err)
 
 std::string PM::promptBuilder(const PM::REQUEST_TYPE &type,  std::string *err)
 {
+    auto history = db.getAllRequestsOfUser(user_);
+    auto context = db.getContextByUser(user_).context;
     std::stringstream ss;
     if ((type != PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION) &&
          type != PM::REQUEST_TYPE::COMPRESSION) {
-        ss << "Ты — ментор по программированию." << '\n';
-        ss << "Ты общаешься с пользователем по имени " << username_ << '\n';
-        ss << "Не здоровайся с пользователем, обращайся к нему на вы." << '\n';
-        auto history = history_.at("requests").get<std::vector<std::vector<std::string>>>();
-        auto context = history_.at("context").get<std::string>();
+        ss << "Ты — опытный ментор по программированию." << '\n';
+        ss << "Твой ученик: " << user_.name << ". Общайся на 'вы'." << '\n';
+        ss << "Не используй приветствия. Переходи сразу к делу." << '\n';
+
         if (context.size()) {
-            ss << "Вот тот контекст информации о пользователе, что ты собрал на основе прошлого опыта общения с ним:" << '\n';
-            ss << context;
-            ss << "----------------------" << '\n';
+            ss << "КОНТЕКСТ ОБ УЧЕНИКЕ (из прошлых сессий):" << '\n';
+            ss << context << '\n';
+            ss << "---" << '\n';
         }
         if (history.size()) {
-            ss << "Вот предыдущие сохранённые запросы пользователя и твои ответы:" << '\n';
+            ss << "ИСТОРИЯ ДИАЛОГА:" << '\n';
             for (const auto& req_pair : history) {
-                ss << "----------------------\n";
-                ss << "Запрос пользователя: " << req_pair[0] << "\n"
-                   << "Твой ответ на него: " << req_pair[1] << "\n";
+                ss << "---" << '\n';
+                ss << "ВОПРОС: " << req_pair.request << "\n"
+                   << "ОТВЕТ: " << req_pair.response << "\n";
             }
+            ss << "---" << '\n';
         }
-        ss << "----------------------" << '\n';
     }
+    
     switch (type) {
         case PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION: {
-            ss << "Ты - модуль ИИ-агента, определяющий тип запроса пользователя" << '\n';
-            ss << "По полученному от пользователя запросу ты должен определить его тип и выдать в ответе только одно кодовое слово, соотвествующее типу запроса." << '\n';
-            ss << "Существуют следующие типы запросов:" << '\n';
-            ss << "Общие вопросы - вопросы по синтаксису языка программирования, алгоритмам, работе с компьютером и утилитами - все вопросы без привязки к уже написанной программе. Кодовое слово для данного типа - general" << '\n';
-            ss << "Консультация по уже написанному коду - вопросы, связанные с улучшением работы уже написанной пользователем программы. Кодовое слово для данного типа - consultation" << '\n';
-            ss << "Отладка уже написанной программы - вопросы касательно некорректно работающих или не работающих совсем частей программы пользователя. Кодовое слово для данного типа - debug" << '\n';
-            ss << "Вопросы, не относяющие к типам, описанным выше - для них кодовое слово -  unknown" << '\n';
-            ss << "В качестве ответа дай одно слово - кодовое слово, соответствующее типу запроса пользователя." << '\n';
+            ss << "Анализируй запрос пользователя. Определи тип. Ответь ОДНИМ словом." << '\n';
+            ss << "ТИПЫ:" << '\n';
+            ss << "1. general — общие вопросы (синтаксис, алгоритмы, утилиты) без привязки к конкретному коду" << '\n';
+            ss << "2. consultation — улучшение существующего кода пользователя" << '\n';
+            ss << "3. debug — исправление ошибок в работающей программе" << '\n';
+            ss << "4. unknown — всё остальное" << '\n';
+            ss << "ПРАВИЛО: Только одно слово: general, consultation, debug или unknown" << '\n';
+            ss << "НЕТ пояснений. НЕТ кавычек." << '\n';
+            ss << "ЗАПРОС:" << '\n';
+            ss << request_;
             break;
         }
         case PM::REQUEST_TYPE::GENERAL_QUESTION: {
-            ss << "Отвечай на следующий вопрос пользователя коротко." << '\n';
-            ss << "В ответе приводи небольшие листинги с кодом - примерами использования интересных пользователю конструкций и алгоритмов." << '\n';
-            ss << "Если есть возможность, постарайся объяснить тему пользователю без написания кода." << '\n';
-            ss << "Данный выше контекст диалога с пользователем используй минимально - пользователю должно быть всё понятно и без него." << '\n';
+            ss << "ОТВЕЧАЙ КОРОТКО И ЯСНО." << '\n';
+            ss << "Инструкции:" << '\n';
+            ss << "1. Сначала объясни теорию простыми словами" << '\n';
+            ss << "2. Если нужно — добавь минимальный пример кода" << '\n';
+            ss << "3. Избегай сложных терминов без объяснений" << '\n';
+            ss << "4. Контекст выше используй только если критично необходимо" << '\n';
+            ss << "ВОПРОС:" << '\n';
+            ss << request_;
             break;
         }
         case PM::REQUEST_TYPE::CODE_CONSULTATION: {
-            ss << "Тебе необходимо будет проанализировать код пользователя и дать ему советы по его улучшению" << '\n';
-            ss << "Обращай внимание пользователя на его ошибки и недоработки, следующим образом: укажи строчку кода, напиши конструкцию, которую нужно доработать, затем объясни, зачем необходимо данное исправление и приведи свой уже исправленный вариант" << '\n';
-            ss << "Используя данный тебе выше контекст, укажи пользователю на те ошибки, которые он продолжает допускать даже после твоих замечаний, а также похвали его за те конструкции и приемы программирования, которые начали у него лучше получаться по сравнению с прошлыми его запросами" << '\n';
-            ss << "При указании на ошибки пользователя, будь предельно вежлив" << '\n';
-            ss << "Если в контексте выше пользователь объяснил, почему он не может принять твои исправления и замечания, прислушайся к нему" << '\n';
+            ss << "АНАЛИЗ КОДА. ДАЙ РЕКОМЕНДАЦИИ." << '\n';
+            ss << "Формат для каждой правки:" << '\n';
+            ss << "1. [Строка X]: что не так" << '\n';
+            ss << "2. Почему это важно" << '\n';
+            ss << "3. Исправленный вариант" << '\n';
+            ss << "ДОПОЛНИТЕЛЬНО:" << '\n';
+            ss << "- Отметь повторяющиеся ошибки из контекста" << '\n';
+            ss << "- Похвали за улучшения" << '\n';
+            ss << "- Учти прошлые возражения ученика" << '\n';
+            ss << "- Будь вежлив и конструктивен" << '\n';
+            ss << "КОД ДЛЯ АНАЛИЗА:" << '\n';
+            ss << request_;
             break;
         }
         case PM::REQUEST_TYPE::CODE_DEBUGGING: {
-            ss << "Тебе нужно произвести отладку кода пользователя" << '\n';
-            ss << "Если ошибка синтаксическая - приведи вариант её устранения и объясни, зачем это нужно" << '\n';
-            ss << "Старайся не переписывать значительно код пользователя - меняй только те места, что необходимо" << '\n';
-            ss << "Если ошибка логическая - например, в логике работы алгоритма, исправь её и объясни, почему раньше программа могла работать некорректно" << '\n';
-            ss << "На основе данного тебе выше контекста подметь, в каких местах пользователь до этого уже совершал схожие ошибки и укажи пользователю на это" << '\n';
-            ss << "При указании на ошибки пользователя, будь предельно вежлив" << '\n';
-            ss << "Отвечай коротко и максимально по существу" << '\n';
+            ss << "НАЙДИ И ИСПРАВЬ ОШИБКИ." << '\n';
+            ss << "ПРИОРИТЕТЫ:" << '\n';
+            ss << "1. Сначала синтаксические ошибки" << '\n';
+            ss << "2. Затем логические ошибки" << '\n';
+            ss << "ПРАВИЛА:" << '\n';
+            ss << "- Меняй только проблемные места" << '\n';
+            ss << "- Объясни причину каждой ошибки" << '\n';
+            ss << "- Укажи на повторяющиеся ошибки из истории" << '\n';
+            ss << "- Будь вежлив" << '\n';
+            ss << "- Отвечай кратко, по делу" << '\n';
+            ss << "КОД С ОШИБКАМИ:" << '\n';
+            ss << request_;
             break;
         }
         case PM::REQUEST_TYPE::UNKNOWN: {
-            ss << "Запрос пользователя не является стандартным, действуй по ситуации." << '\n';
-            ss << "Если вопрос не касается программирования и Computer Science, вежливо скажи пользователю, что не можешь ему помочь." << '\n';
+            ss << "Анализируй запрос." << '\n';
+            ss << "ЕСЛИ запрос о программировании или IT — помоги в рамках своей экспертизы" << '\n';
+            ss << "ЕСЛИ запрос НЕ о программировании — вежливо откажись" << '\n';
+            ss << "Фраза для отказа: 'Извините, я могу помочь только с вопросами программирования и Computer Science.'" << '\n';
+            ss << "ЗАПРОС:" << '\n';
+            ss << request_;
             break;
         }
         case PM::REQUEST_TYPE::COMPRESSION: {
-            ss << "Ты — модуль, ответственный за сжатие контекста для ИИ-агента, консультирующего программистов." << '\n';
-            ss << "Ты получишь контекст и историю общения ИИ агента с пользователем." << '\n';
-            ss << "Твоя задача - сжать полученную информацию, при этом сохранив следующее:" << '\n';
-            ss << "1) Какие задачи, алгоритмы и темы ИИ-агент обсуждал с пользователем - пиши об этом максимально коротко" << '\n';
-            ss << "2) Какие рекомендации ИИ-агент давал пользователю, отдельно укажи, к каким пользователь прислушался, а какие - проигнорировал и почему" << '\n';
-            ss << "3) Что у пользователя получается делать на данный момент хорошо и в чём он разбирается" << '\n';
-            ss << "4) В чём, по мнению, ИИ-агента пользователь слабоват и на какие моменты ему стоит обратить внимание" << '\n';
-            ss << "5) Какую последнюю задачу ИИ-агент решал с пользователем, была ли она решена и если нет, то какие проблемы остались" << '\n';
-            ss << "Ты пишешь системную информацию, поэтому отвечай по существу" << '\n';
-            ss << "Ниже приведён контекст, который тебе необходимо сжать:" << '\n';
-            ss << "----------------------" << '\n';
-            auto history = history_.at("requests").get<std::vector<std::vector<std::string>>>();
-            auto context = history_.at("context").get<std::string>();
+            ss << "Ты — система сжатия контекста." << '\n';
+            ss << "СЖАТЬ диалог ментора и ученика." << '\n';
+            ss << "СОХРАНИТЬ:" << '\n';
+            ss << "1. Темы и алгоритмы (кратко)" << '\n';
+            ss << "2. Рекомендации ментора" << '\n';
+            ss << "   - Принятые учеником" << '\n';
+            ss << "   - Отклонённые (и причина)" << '\n';
+            ss << "3. Сильные стороны ученика" << '\n';
+            ss << "4. Слабые стороны (что улучшить)" << '\n';
+            ss << "5. Последняя задача: статус и проблемы" << '\n';
+            ss << "ФОРМАТ: краткие пункты, только факты" << '\n';
+            ss << "КОНТЕКСТ ДЛЯ СЖАТИЯ:" << '\n';
+            ss << "---" << '\n';
             if (context.size()) {
-                ss << "Вот тот контекст информации о пользователе, что ты собрал на основе прошлого опыта общения с ним:" << '\n';
-                ss << context;
-                ss << "----------------------" << '\n';
+                ss << "КОНТЕКСТ УЧЕНИКА:" << '\n';
+                ss << context << '\n';
+                ss << "---" << '\n';
             }
             if (history.size()) {
-                ss << "Вот предыдущие сохранённые запросы пользователя и твои ответы:" << '\n';
+                ss << "ИСТОРИЯ ДИАЛОГОВ:" << '\n';
                 for (const auto &request : history) {
-                    ss << "----------------------" << '\n';
-                    ss << "Запрос пользователя: " << request[0] << '\n' << "Твой ответ на него: " << request[1] << '\n';
+                    ss << "---" << '\n';
+                    ss << "ВОПРОС: " << request.request << '\n';
+                    ss << "ОТВЕТ: " << request.response << '\n';
                 }
             }
-            ss << "----------------------" << '\n';
+            ss << "---" << '\n';
             break;
         }
         default: break;
     }
+
+    ss << "ТРЕБОВАНИЯ К ОТВЕТУ:" << '\n';
+    ss << "- Только текст (без Markdown)" << '\n';
+    ss << "- Без лишних знаков препинания" << '\n';
+    ss << "- Максимум 1000 символов" << '\n';
+    ss << "- Прямой и четкий ответ" << '\n';
+    
     prompt_ = ss.str();
     return prompt_;
 }
 
-void PM::saveSession()
-{
-    if (!cfg_.history_path) return;
-    const std::string full_path = *cfg_.history_path + "/" + username_ + ".json";
-    std::ofstream histfile(full_path, std::ios::trunc);
-    if (!histfile) {
-        std::cerr << "Failed to open history file: " << full_path << '\n';
-        return;
-    }
-    histfile << history_.dump(4);
-}
-
-void PM::saveHistory(const std::optional<std::string>& answer, const std::string &request)
-{
-    history_["requests"].push_back({request, answer.value_or("")});
-    if (shouldCompress(std::nullopt)) compressHistory(nullptr);
-}
-
 void PM::compressHistory(std::string *err)
 {
-    promptBuilder(PM::inner_converter_.at("compression"), err);
+    std::cout << "<Mentor>: Происходит сжатие контекста..." << std::endl;
+    auto history = db.getAllRequestsOfUser(user_);
+    auto current_context = db.getContextByUser(user_).context;
+    promptBuilder(PM::COMPRESSION, err);
     auto resp = ask(err);
     if (!resp || resp->empty()) {
         if (err && !err->empty()) std::cerr << "Request failed: " << *err << '\n';
+        std::cout << "<Mentor>: Ошибка при сжатии контекста" << std::endl;
         return;
     }
-    std::string compressed_history = *resp;
-    if (compressed_history.size()) {
-        history_["context"] = compressed_history;
-        history_["requests"] = std::vector<std::vector<std::string>>();
-        saveSession();
+    
+    Context context = db.getContextByUser(user_);
+    context.context = *resp;
+    
+    if (context.context.size()) {
+        db.addContext(user_, context);
+        if (history.size() > 1) {
+            db.deleteRequestsOfUser(user_);
+            if (!history.empty()) {
+                db.addRequest(user_, history.back());
+            }
+        }
     }
+    std::cout << "<Mentor>: Сжатие контекста завершено!" << std::endl;
 }
 
 bool PM::shouldCompress(std::optional<PM::REQUEST_TYPE> nextType) {
-    const auto reqs = history_.at("requests").get<std::vector<std::vector<std::string>>>();
-    if (reqs.size() >= cfg_.max_requests.value_or(20)) return true;
-    const size_t bytes = history_.dump(0).size();
-    if (bytes >= cfg_.max_history_bytes.value_or(256 * 1024)) return true;
-    if (last_type_.has_value() && nextType.has_value() && last_type_.value() != nextType.value()) return true;
+    const auto reqs = db.getAllRequestsOfUser(user_);
+    if (reqs.size() >= cfg_.max_requests.value_or(10)) return true;
+    size_t syms = 0;
+    for (const auto &req : reqs) syms += (req.request.size() + req.response.size());
+    if (syms >= cfg_.max_history.value_or(1024)) return true;
+    if (last_type_.has_value() && nextType.has_value() 
+        && last_type_.value() != nextType.value()
+        && last_type_.value() != PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION
+        && nextType.value() != PM::REQUEST_TYPE::REQUEST_TYPE_DETERMINATION) {
+        return true;
+    }
+    
     return false;
 }
