@@ -23,7 +23,7 @@ const static std::unordered_map<std::string, REQUEST_TYPE> inner_converter_;
 public:
 void printInfo();
 void openDB();
-void userIntroduction(std::string *err = nullptr);
+bool userIntroduction(std::string *err = nullptr);
 void determineRequestType(const std::string &request, std::string *err  = nullptr);
 std::string promptBuilder(const PM::REQUEST_TYPE &type, const std::string &request, std::string *err);
 std::string getUserRequest(std::string *err  = nullptr);

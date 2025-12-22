@@ -226,7 +226,7 @@ std::optional<std::string> AiAgent::ask(std::string* outErr) const {
     } else if (cfg_.type == "local") {
         payload.push_back({
             {"role", "system"},
-            {"content", SYSTEM_PROMPT_FOR_LOCAL}
+            {"content", system_prompt}
         });
         payload.push_back({
             {"role", "user"},

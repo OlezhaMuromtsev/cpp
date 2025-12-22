@@ -61,17 +61,19 @@ void PM::determineRequestType(const std::string &request, std::string *err)
     promptBuilder(type, request, err);
 }
 
-void PM::userIntroduction(std::string *err)
+bool PM::userIntroduction(std::string *err)
 {
     std::cout << "Введите имя:" << '\n';
     std::string name;
-    while (!name.size()) std::cin >> name;
+    while (!name.size() && !std::cin.eof()) std::cin >> name;
+    if (std::cin.eof()) return false;
     std::cout << "<Mentor>: Здравствуйте, " << name << "!" << '\n';
     if (!loadHistory(name, err)) {
         std::cout << "<Mentor>: Приятно познакомиться. Какой у вас вопрос?" << '\n';
     } else {
         std::cout << "<Mentor>: Похоже мы с вами уже работали. Какой у вас вопрос?" << '\n';
     }
+    return true;
 }
 
 std::string PM::getUserRequest(std::string *err)
@@ -192,7 +194,7 @@ std::string PM::promptBuilder(const PM::REQUEST_TYPE &type, const std::string &r
             ss << "4. Слабые стороны (что улучшить)" << '\n';
             ss << "5. Последняя задача: статус и проблемы" << '\n';
             ss << "ФОРМАТ: краткие пункты, только факты" << '\n';
-            ss << "РАЗМЕР: не более " << cfg_.max_history / 2 << " символов" << '\n';
+            ss << "РАЗМЕР: не более " << cfg_.max_history.value_or(1024) / 2 << " символов" << '\n';
             ss << "КОНТЕКСТ ДЛЯ СЖАТИЯ:" << '\n';
             ss << "---" << '\n';
             if (context.size()) {

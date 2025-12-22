@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
     }
     agent.openDB();
     agent.printInfo();
-    agent.userIntroduction(&err);
+    if (!agent.userIntroduction(&err)) return 0;
     std::cout << "<Mentor>: Жду ваш запрос... Введите 'END' для окончания ввода" << std::endl;
     std::string request = agent.getUserRequest(&err);
     while (request.size()) {
@@ -35,5 +35,6 @@ int main(int argc, char **argv) {
         std::cout << "<Mentor>: Жду ваш запрос... Введите 'END' для окончания ввода" << std::endl;
         request = agent.getUserRequest(&err);
     }
+    std::cout << std::endl;
     return 0;
 }
