@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <vector>
+#include <utility>
 #include <optional>
 #include <nlohmann/json.hpp>
 
@@ -48,4 +50,6 @@ protected:
     static bool readWholeFile(const std::string& path, std::string& out, std::string* err);
     AiConfig cfg_;
     std::string prompt_;
+    std::string request_;
+    std::vector<std::pair<std::string, std::string>> history_;
 };

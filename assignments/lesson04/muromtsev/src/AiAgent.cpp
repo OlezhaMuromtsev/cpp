@@ -35,13 +35,13 @@ bool AiAgent::loadConfig(const std::string& path, std::string* err) {
             if (j.contains("port")) cfg_.port = j.at("port").get<std::string>();
             cfg_.api_key = j.at("api_key").get<std::string>();
             if (j.contains("max_saved_requests")) cfg_.max_requests = j.at("max_history_length").get<size_t>();
-            if (j.contains("max_saved_bytes")) cfg_.max_history = j.at("max_saved_bytes").get<size_t>();
+            if (j.contains("max_history_length")) cfg_.max_history = j.at("max_history_length").get<size_t>();
         } else if (cfg_.type == "local") {
             cfg_.host   = j.at("host").get<std::string>();
             if (j.contains("port")) cfg_.port = j.at("port").get<std::string>();
             cfg_.model = j.at("model").get<std::string>();
             if (j.contains("max_saved_requests")) cfg_.max_requests = j.at("max_saved_requests").get<size_t>();
-            if (j.contains("max_saved_bytes")) cfg_.max_history = j.at("max_history_length").get<size_t>();
+            if (j.contains("max_history_length")) cfg_.max_history = j.at("max_history_length").get<size_t>();
             cfg_.max_tokens = j.at("max_tokens").get<size_t>();
             cfg_.temp = j.at("temperature").get<double>();
             cfg_.top_p = j.at("top_p").get<double>();
@@ -226,13 +226,22 @@ std::optional<std::string> AiAgent::ask(std::string* outErr) const {
     } else if (cfg_.type == "local") {
         payload.push_back({
             {"role", "system"},
-            {"content", system_prompt}
-        });
-        payload.push_back({
-            {"role", "user"},
             {"content", prompt_}
         });
+        for (const auto &req_resp : history_) {
+            payload.push_back({
+                {"role", "user"},
+                {"content", req_resp.first}
+            });
+            payload.push_back({
+                {"role", "assistant"},
+                {"content", req_resp.second}
+            });
+        }
+        payload.push_back({
+            {"role", "user"},
+            {"content", request_}
+        });
     }
-
     return httpsPostGenerate(cfg_, payload, outErr);
 }
